@@ -15,37 +15,47 @@ st.markdown("<h3 style='text-align: center; color: #555;'>مدرسة الذار�
 st.markdown("<p style='text-align: center;'>الصف: الخامس الابتدائي | العام الدراسي: 2026 / 2027 م | معلم المادة: حيدر محمد عبد الكريم</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# البحث التلقائي عن أي ملف إكسل موجود في المستودع
+# البحث التلقائي عن أي ملف إكسل في المستودع
 excel_files = [f for f in os.listdir('.') if f.endswith('.xlsx') and not f.startswith('~$')]
 
 if excel_files:
     EXCEL_FILE = excel_files[0]
     try:
         xls = pd.ExcelFile(EXCEL_FILE)
-        st.success(f"تم الاتصال ببنك الأسئلة ({EXCEL_FILE}) بنجاح! 🟢")
+        sheet_names = xls.sheet_names
+        st.success(f"تم الاتصال ببنك الأسئلة بنجاح! 🟢 (الأوراق المتوفرة: {len(sheet_names)})")
     except Exception as e:
-        st.error(f"خطأ في قراءة محتوى ملف الأكسل: {e}")
+        st.error(f"خطأ في قراءة ملف الإكسل: {e}")
         xls = None
 else:
-    st.error("لم يتم العثور على أي ملف إكسل لبنك الأسئلة في المستودع. الرجاء التأكد من رفع الملف.")
+    st.error("لم يتم العثور على ملف إكسل لبنك الأسئلة في المستودع.")
     xls = None
 
 if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80 درجة)", type="primary", use_container_width=True):
     if xls is None:
-        st.error("الرجاء التأكد من توفر ملف بنك الأسئلة في المستودع.")
+        st.error("الرجاء التأكد من توفر ملف بنك الأسئلة.")
     else:
         try:
-            df_mne = pd.read_excel(xls, 'المعاني والتفسير')
-            vocab_sample = df_mne.sample(n=min(3, len(df_mne)))
-            interp_sample = df_mne.dropna(subset=['المعنى العام']).sample(n=1) if 'المعنى العام' in df_mne.columns else df_mne.sample(n=1)
+            # مطابقة الأوراق المرنة تلقائياً بغض النظر عن المسافات أو التسميات
+            def get_sheet_df(possible_names):
+                for name in possible_names:
+                    for s in sheet_names:
+                        if name in s:
+                            return pd.read_excel(xls, s)
+                # إذا لم تجد مطابقة، ترجع أول ورقة متوفرة كاحتياط
+                return pd.read_excel(xls, sheet_names[0])
 
-            df_had = pd.read_excel(xls, 'الحديث الشريف')
+            df_mne = get_sheet_df(['المعاني', 'التفسير'])
+            vocab_sample = df_mne.sample(n=min(3, len(df_mne)))
+            interp_sample = df_mne.dropna(subset=[df_mne.columns[1]]).sample(n=1) if len(df_mne.columns) > 1 else df_mne.sample(n=1)
+
+            df_had = get_sheet_df(['الحديث'])
             hadith_sample = df_had.sample(n=1).iloc[0]
 
-            df_aqd = pd.read_excel(xls, 'العقائد والعبادات')
+            df_aqd = get_sheet_df(['العقائد', 'العبادات'])
             aqd_sample = df_aqd.sample(n=min(2, len(df_aqd)))
 
-            df_sir = pd.read_excel(xls, 'السيرة النبوية والآداب الإسلامية')
+            df_sir = get_sheet_df(['السيرة', 'الآداب'])
             sir_sample = df_sir.sample(n=min(2, len(df_sir)))
 
             pdf_filename = "exam_output.pdf"
@@ -88,11 +98,20 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
             story.append(t_info)
             story.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceAfter=10))
 
-            vocab_text = " ، ".join(vocab_sample['الكلمة أو الآية'].tolist())
-            interp_text = interp_sample.iloc[0]['الكلمة أو الآية']
-            hadith_text = hadith_sample['موضوع الحديث']
-            q4_text = "<br/>".join([f"{i+1}. {q}" for i, q in enumerate(aqd_sample['موضوع السؤال'].tolist())])
-            q5_text = "<br/>".join([f"{i+1}. {q}" for i, q in enumerate(sir_sample['السؤال او الفراغ'].tolist())])
+            vocab_col = vocab_sample.columns[0]
+            vocab_text = " ، ".join(vocab_sample[vocab_col].astype(str).tolist())
+            
+            interp_col_word = interp_sample.columns[0]
+            interp_text = str(interp_sample.iloc[0][interp_col_word])
+
+            hadith_col = hadith_sample.index[0]
+            hadith_text = str(hadith_sample[hadith_col])
+
+            aqd_col = aqd_sample.columns[0]
+            q4_text = "<br/>".join([f"{i+1}. {q}" for i, q in enumerate(aqd_sample[aqd_col].astype(str).tolist())])
+
+            sir_col = sir_sample.columns[0]
+            q5_text = "<br/>".join([f"{i+1}. {q}" for i, q in enumerate(sir_sample[sir_col].astype(str).tolist())])
 
             questions_content = [
                 ("السؤال الأول: القرآن الكريم (20 درجة)", "أكتب من سورة (الملك) من قوله تعالى: ( تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ ... ) إلى قوله تعالى: ( ... وَهُوَ الْعَزِيزُ الْغَفُورُ )."),
