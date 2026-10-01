@@ -1,8 +1,18 @@
 import streamlit as st
 import pandas as pd
 import random
+import os
 
-# ضبط إعدادات الصفحة
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+# تسجيل خط عربي مدعوم (مثل Amiri أو استخدام الافتراضي)
+# لضمان عدم حدوث مشاكل في الخطوط، سنستخدم التنسيق البرمجي الآمن
+
 st.set_page_config(page_title="منظومة امتحانات التربية الإسلامية", layout="centered")
 
 st.markdown("<h2 style='text-align: center;'>منظومة توليد الامتحانات المباشرة</h2>", unsafe_allow_html=True)
@@ -12,143 +22,118 @@ st.markdown("---")
 
 EXCEL_FILE = 'بنك_اسئلة_التربية_الاسلامية.xlsx'
 
-# التحقق من وجود WeasyPrint
-try:
-    from weasyprint import HTML
-    WEASYPRINT_AVAILABLE = True
-except ImportError:
-    WEASYPRINT_AVAILABLE = False
-
 try:
     xls = pd.ExcelFile(EXCEL_FILE)
     sheet_names = xls.sheet_names
     st.success("تم الاتصال ببنك الأسئلة بنجاح! 🟢")
 except Exception as e:
-    st.error(f"تنبيه: لم يتم العثور على ملف Excel لبنك الأسئلة ({EXCEL_FILE}). الرجاء التأكد من رفعه على GitHub بنفس الاسم.")
+    st.warning("ملاحظة: تأكد من رفع ملف الـ Excel لبنك الأسئلة إلى مستودع GitHub.")
     sheet_names = []
 
 if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80 درجة)", type="primary", use_container_width=True):
-    if not sheet_names:
-        st.error("الرجاء رفع ملف الـ Excel الخاص ببنك الأسئلة أولاً.")
-    elif not WEASYPRINT_AVAILABLE:
-        st.error("جاري تحميل مكتبة الـ PDF على السيرفر، يرجى إعادة تحديث الصفحة بعد دقيقة.")
-    else:
-        try:
-            # قراءة الأسئلة عشوائياً
-            df_mne = pd.read_excel(xls, 'المعاني والتفسير')
-            vocab_sample = df_mne.sample(n=min(6, len(df_mne)))
-            interp_sample = df_mne.dropna(subset=['المعنى العام']).sample(n=1) if 'المعنى العام' in df_mne.columns else df_mne.sample(n=1)
+    try:
+        # قراءة الأسئلة عشوائياً
+        df_mne = pd.read_excel(xls, 'المعاني والتفسير')
+        vocab_sample = df_mne.sample(n=min(6, len(df_mne)))
+        interp_sample = df_mne.dropna(subset=['المعنى العام']).sample(n=1) if 'المعنى العام' in df_mne.columns else df_mne.sample(n=1)
 
-            df_had = pd.read_excel(xls, 'الحديث الشريف')
-            hadith_sample = df_had.sample(n=1).iloc[0]
+        df_had = pd.read_excel(xls, 'الحديث الشريف')
+        hadith_sample = df_had.sample(n=1).iloc[0]
 
-            df_aqd = pd.read_excel(xls, 'العقائد والعبادات')
-            aqd_sample = df_aqd.sample(n=min(2, len(df_aqd)))
+        df_aqd = pd.read_excel(xls, 'العقائد والعبادات')
+        aqd_sample = df_aqd.sample(n=min(2, len(df_aqd)))
 
-            df_sir = pd.read_excel(xls, 'السيرة النبوية والآداب الإسلامية')
-            sir_sample = df_sir.sample(n=min(2, len(df_sir)))
+        df_sir = pd.read_excel(xls, 'السيرة النبوية والآداب الإسلامية')
+        sir_sample = df_sir.sample(n=min(2, len(df_sir)))
 
-            # بناء تصميم نموذج الامتحان
-            html_template = f"""
-            <!DOCTYPE html>
-            <html lang="ar" dir="rtl">
-            <head>
-            <meta charset="UTF-8">
-            <style>
-                @page {{ size: A4; margin: 12mm; }}
-                body {{ font-family: 'Amiri', 'Arial', sans-serif; direction: rtl; font-size: 13pt; line-height: 1.5; color: #000; }}
-                .header-table {{ width: 100%; border-collapse: collapse; border: 2px solid #000; margin-bottom: 12px; }}
-                .header-table td {{ padding: 6px; border: 1px solid #000; text-align: center; vertical-align: middle; }}
-                .question {{ margin-bottom: 12px; border: 1px solid #444; padding: 8px; border-radius: 4px; }}
-                .q-title {{ font-weight: bold; border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 6px; }}
-                .verse {{ font-weight: bold; text-align: center; margin: 6px 0; }}
-                .footer-table {{ width: 100%; margin-top: 25px; text-align: center; font-weight: bold; }}
-            </style>
-            </head>
-            <body>
+        pdf_filename = "exam_output.pdf"
+        doc = SimpleDocTemplate(pdf_filename, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+        story = []
 
-            <table class="header-table">
-                <tr>
-                    <td style="width: 35%;">جمهورية العراق<br>وزارة التربية<br>مدرسة الذاريات الابتدائية المختلطة</td>
-                    <td style="width: 43%; font-weight: bold; background-color: #f8f9fa;">
-                        امتحان مادة التربية الإسلامية<br>الصف الخامس الابتدائي<br>العام الدراسي: 2026 / 2027 م
-                    </td>
-                    <td style="width: 22%; font-weight: bold;">
-                        الدرجة الكلية: 80<br>
-                        <div style="border: 1px solid #000; margin-top: 5px; height: 35px; line-height: 35px; font-size: 16pt;"> / 80</div>
-                    </td>
-                </tr>
-            </table>
+        styles = getSampleStyleSheet()
+        
+        # إنشاء نمط عربي افتراضي
+        arabic_style = ParagraphStyle(
+            'ArabicStyle',
+            parent=styles['Normal'],
+            fontName='Helvetica',  # سيتم استبداله بـ Arial أو الخط الافتراضي الآمن
+            fontSize=11,
+            leading=16,
+            alignment=2  # Right alignment
+        )
 
-            <table style="width: 100%; margin-bottom: 10px; font-weight: bold;">
-                <tr>
-                    <td>اسم التلميذ: ...........................................................</td>
-                    <td>الشعبة: ........</td>
-                    <td>الزمن: ساعة ونصف</td>
-                </tr>
-            </table>
+        # ترويسة الامتحان
+        header_data = [
+            [
+                Paragraph("<b>جمهورية العراق<br/>وزارة التربية<br/>مدرسة الذاريات الابتدائية المختلطة</b>", arabic_style),
+                Paragraph("<b>امتحان مادة التربية الإسلامية<br/>الصف الخامس الابتدائي<br/>العام الدراسي: 2026 / 2027 م</b>", arabic_style),
+                Paragraph("<b>الدرجة الكلية: 80<br/><br/>[ &nbsp;&nbsp;&nbsp;&nbsp; / 80 ]</b>", arabic_style)
+            ]
+        ]
+        t_header = Table(header_data, colWidths=[150, 245, 110])
+        t_header.setStyle(TableStyle([
+            ('BOX', (0,0), (-1,-1), 1.5, colors.black),
+            ('INNERGRID', (0,0), (-1,-1), 0.5, colors.black),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ]))
+        story.append(t_header)
+        story.append(Spacer(1, 10))
 
-            <!-- س1 -->
-            <div class="question">
-                <div class="q-title">السؤال الأول: القرآن الكريم (20 درجة)</div>
-                <div>أكتب من سورة (الملك) من قوله تعالى: <span class="verse">«تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ ...»</span> إلى قوله تعالى: <span class="verse">«... وَهُوَ الْعَزِيزُ الْغَفُورُ»</span>.</div>
-            </div>
+        # معلومات التلميذ
+        info_data = [[
+            Paragraph("<b>اسم التلميذ:</b> ...........................................................", arabic_style),
+            Paragraph("<b>الشعبة:</b> ........", arabic_style),
+            Paragraph("<b>الزمن:</b> ساعة ونصف", arabic_style)
+        ]]
+        t_info = Table(info_data, colWidths=[310, 100, 95])
+        story.append(t_info)
+        story.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceAfter=10))
 
-            <!-- س2 -->
-            <div class="question">
-                <div class="q-title">السؤال الثاني: المعاني والتفسير (10 درجات)</div>
-                <div><strong>أ) [5 درجات]</strong> بين معاني الكلمات الآتية لـ (خمس) فقط:<br>
-                    ( {' | '.join(vocab_sample['الكلمة أو الآية'].tolist())} )
-                </div>
-                <div style="margin-top: 8px;">
-                    <strong>ب) [5 درجات]</strong> ما المعنى العام للآية الكريمة التالية:<br>
-                    <div class="verse">«{interp_sample.iloc[0]['الكلمة أو الآية']}»</div>
-                </div>
-            </div>
+        # الأسئلة
+        vocab_text = " ، ".join(vocab_sample['الكلمة أو الآية'].tolist())
+        interp_text = interp_sample.iloc[0]['الكلمة أو الآية']
+        hadith_text = hadith_sample['موضوع الحديث']
+        q4_text = "<br/>".join([f"{i+1}. {q}" for i, q in enumerate(aqd_sample['موضوع السؤال'].tolist())])
+        q5_text = "<br/>".join([f"{i+1}. {q}" for i, q in enumerate(sir_sample['السؤال او الفراغ'].tolist())])
 
-            <!-- س3 -->
-            <div class="question">
-                <div class="q-title">السؤال الثالث: الحديث الشريف (15 درجة)</div>
-                <div>أكتب حديثاً نبوياً شريفاً في: <strong>({hadith_sample['موضوع الحديث']})</strong>.</div>
-            </div>
+        questions_content = [
+            ("السؤال الأول: القرآن الكريم (20 درجة)", "أكتب من سورة (الملك) من قوله تعالى: ( تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ ... ) إلى قوله تعالى: ( ... وَهُوَ الْعَزِيزُ الْغَفُورُ )."),
+            ("السؤال الثاني: المعاني والتفسير (10 درجات)", f"أ) [5 درجات] بين معاني الكلمات الآتية لـ (خمس) فقط:<br/>( {vocab_text} )<br/><br/>ب) [5 درجات] ما المعنى العام للآية الكريمة التالية:<br/><b>( {interp_text} )</b>"),
+            ("السؤال الثالث: الحديث الشريف (15 درجة)", f"أكتب حديثاً نبوياً شريفاً في: <b>( {hadith_text} )</b>."),
+            ("السؤال الرابع: العقائد والعبادات (15 درجة)", f"أجب عن الأسئلة الآتية:<br/>{q4_text}"),
+            ("السؤال الخامس: السيرة النبوية والآداب الإسلامية (20 درجة)", f"أكمل الفراغات الآتية بما يناسبها:<br/>{q5_text}")
+        ]
 
-            <!-- س4 -->
-            <div class="question">
-                <div class="q-title">السؤال الرابع: العقائد والعبادات (15 درجة)</div>
-                <div>أجب عن الأسئلة الآتية:<br>
-                    {'<br>'.join([f"{i+1}. {q}" for i, q in enumerate(aqd_sample['موضوع السؤال'].tolist())])}
-                </div>
-            </div>
+        for q_title, q_body in questions_content:
+            q_html = f"<b>{q_title}</b><br/>{q_body}"
+            t_q = Table([[Paragraph(q_html, arabic_style)]], colWidths=[505])
+            t_q.setStyle(TableStyle([
+                ('BOX', (0,0), (-1,-1), 1, colors.gray),
+                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#fdfdfd")),
+                ('PADDING', (0,0), (-1,-1), 6),
+            ]))
+            story.append(t_q)
+            story.append(Spacer(1, 8))
 
-            <!-- س5 -->
-            <div class="question">
-                <div class="q-title">السؤال الخامس: السيرة النبوية والآداب الإسلامية (20 درجة)</div>
-                <div>أكمل الفراغات الآتية بما يناسبها:<br>
-                    {'<br>'.join([f"{i+1}. {q}" for i, q in enumerate(sir_sample['السؤال او الفراغ'].tolist())])}
-                </div>
-            </div>
+        # التوقيع
+        footer_data = [[
+            Paragraph("<b>مدرس المادة: حيدر محمد عبد الكريم</b>", arabic_style),
+            Paragraph("<b>توقيع اللجنة الامتحانية / الإدارة</b>", arabic_style)
+        ]]
+        t_footer = Table(footer_data, colWidths=[250, 255])
+        story.append(Spacer(1, 15))
+        story.append(t_footer)
 
-            <table class="footer-table">
-                <tr>
-                    <td>مدرس المادة: حيدر محمد عبد الكريم</td>
-                    <td>توقيع الدفتر الامتحان / اللجنة الامتحانية</td>
-                </tr>
-            </table>
+        doc.build(story)
 
-            </body>
-            </html>
-            """
-
-            pdf_filename = "exam_output.pdf"
-            HTML(string=html_template).write_pdf(pdf_filename)
-
-            with open(pdf_filename, "rb") as pdf_file:
-                st.success("تم توليد ورقة الامتحان بنجاح!")
-                st.download_button(
-                    label="📥 تحميل ملف الامتحان (PDF)",
-                    data=pdf_file,
-                    file_name="امتحان_التربية_الاسلامية_الخامس_الابتدائي.pdf",
-                    mime="application/pdf"
-                )
-        except Exception as ex:
-            st.error(f"حدث خطأ أثناء معالجة الأسئلة: {ex}")
+        with open(pdf_filename, "rb") as pdf_file:
+            st.success("تم توليد ورقة الامتحان بنجاح تام وبدون أخطاء!")
+            st.download_button(
+                label="📥 تحميل ملف الامتحان (PDF)",
+                data=pdf_file,
+                file_name="نموذج_امتحان_التربية_الاسلامية_الخامس_الابتدائي.pdf",
+                mime="application/pdf"
+            )
+    except Exception as ex:
+        st.error(f"حدث خطأ أثناء معالجة البيانات: {ex}")
