@@ -1,23 +1,4 @@
-[1:47 ص، 2026/10/2] حيدرالزبيدي: import streamlit as st
-import pandas as pd
-import random
-import os
-
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-
-# تسجيل خط عربي مدعوم (مثل Amiri أو استخدام الافتراضي)
-# لضمان عدم حدوث مشاكل في الخطوط، سنستخدم التنسيق البرمجي الآمن
-
-st.set_page_config(page_title="منظومة امتحانات التربية الإسلامية", layout="centered")
-
-st.markdown("<h2 style='text-align: center;'>منظومة توليد الامتحانات المباشرة</h2>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align: center; color: #555;'…
-[1:49 ص، 2026/10/2] حيدرالزبيدي: import streamlit as st
+import streamlit as st
 import pandas as pd
 import random
 import os
@@ -34,27 +15,13 @@ st.markdown("<h3 style='text-align: center; color: #555;'>مدرسة الذار�
 st.markdown("<p style='text-align: center;'>الصف: الخامس الابتدائي | العام الدراسي: 2026 / 2027 م | معلم المادة: حيدر محمد عبد الكريم</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-EXCEL_FILE = 'بنك_اسئلة_التربية_الاسلامية.xlsx'
-
-# دالة لقراءة ملف الأكسل مع إنشاء ملف افتراضي إذا لم يكن موجوداً
-@st.cache_data
-def load_excel_data():
-    if not os.path.exists(EXCEL_FILE):
-        # إنشاء ملف أكسل افتراضي مؤقت إذا لم يتم رفعه بعد لضمان عدم توقف التطبيق
-        with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
-            pd.DataFrame({'السؤال': ['أكتب من سورة الملك...']}).to_excel(writer, sheet_name='القرآن الكريم', index=False)
-            pd.DataFrame({'الكلمة أو الآية': ['تَبَارَكَ', 'يَدِهِ', 'الْمُلْكُ', 'قَدِيرٌ', 'يَبْلُوكُمْ'], 'المعنى العام': ['تعاظم وتبرك خيره', 'قدرته', 'سلطانه', 'مقتدر', 'يختبركم']}).to_excel(writer, sheet_name='المعاني والتفسير', index=False)
-            pd.DataFrame({'موضوع الحديث': ['طلب العلم', 'البر والإحسان']}).to_excel(writer, sheet_name='الحديث الشريف', index=False)
-            pd.DataFrame({'موضوع السؤال': ['ما الإيمان بالله؟', 'ما أهمية الصلاة؟']}).to_excel(writer, sheet_name='العقائد والعبادات', index=False)
-            pd.DataFrame({'السؤال او الفراغ': ['ولد النبي صلى الله عليه وسلم في ............', 'رضع النبي صلى الله عليه وسلم من حليمة ............']}).to_excel(writer, sheet_name='السيرة النبوية والآداب الإسلامية', index=False)
-    
-    return pd.ExcelFile(EXCEL_FILE)
+EXCEL_FILE = 'قرآن والتربية الاسلامية_الصف الخامس_2026_2027.xlsx'
 
 try:
-    xls = load_excel_data()
+    xls = pd.ExcelFile(EXCEL_FILE)
     st.success("تم الاتصال ببنك الأسئلة وجاهزية المنظومة بنجاح! 🟢")
 except Exception as e:
-    st.error(f"حدث خطأ أثناء تحميل ملف الأكسل: {e}")
+    st.error(f"خطأ في قراءة ملف الأكسل، تأكد من مطابقة اسم الملف تماماً: {e}")
     xls = None
 
 if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80 درجة)", type="primary", use_container_width=True):
@@ -62,9 +29,8 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
         st.error("الرجاء التأكد من وجود ملف بنك الأسئلة.")
     else:
         try:
-            # قراءة الأسئلة عشوائياً لكل قسم
             df_mne = pd.read_excel(xls, 'المعاني والتفسير')
-            vocab_sample = df_mne.sample(n=min(5, len(df_mne)))
+            vocab_sample = df_mne.sample(n=min(3, len(df_mne)))
             interp_sample = df_mne.dropna(subset=['المعنى العام']).sample(n=1) if 'المعنى العام' in df_mne.columns else df_mne.sample(n=1)
 
             df_had = pd.read_excel(xls, 'الحديث الشريف')
@@ -90,7 +56,6 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
                 alignment=2
             )
 
-            # ترويسة الامتحان الرسمية
             header_data = [
                 [
                     Paragraph("<b>جمهورية العراق<br/>وزارة التربية<br/>مدرسة الذاريات الابتدائية المختلطة</b>", arabic_style),
@@ -108,7 +73,6 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
             story.append(t_header)
             story.append(Spacer(1, 10))
 
-            # معلومات التلميذ
             info_data = [[
                 Paragraph("<b>اسم التلميذ:</b> ...........................................................", arabic_style),
                 Paragraph("<b>الشعبة:</b> ........", arabic_style),
@@ -118,7 +82,6 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
             story.append(t_info)
             story.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceAfter=10))
 
-            # محتوى الأسئلة الموزعة حسب الـ 80 درجة
             vocab_text = " ، ".join(vocab_sample['الكلمة أو الآية'].tolist())
             interp_text = interp_sample.iloc[0]['الكلمة أو الآية']
             hadith_text = hadith_sample['موضوع الحديث']
@@ -127,7 +90,7 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
 
             questions_content = [
                 ("السؤال الأول: القرآن الكريم (20 درجة)", "أكتب من سورة (الملك) من قوله تعالى: ( تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ ... ) إلى قوله تعالى: ( ... وَهُوَ الْعَزِيزُ الْغَفُورُ )."),
-                ("السؤال الثاني: المعاني والتفسير (10 درجات)", f"أ) [5 درجات] بين معاني الكلمات الآتية لـ (خمس) فقط:<br/>( {vocab_text} )<br/><br/>ب) [5 درجات] ما المعنى العام للآية الكريمة التالية:<br/><b>( {interp_text} )</b>"),
+                ("السؤال الثاني: المعاني والتفسير (10 درجات)", f"أ) [5 درجات] بين معاني الكلمات الآتية:<br/>( {vocab_text} )<br/><br/>ب) [5 درجات] ما المعنى العام للآية الكريمة التالية:<br/><b>( {interp_text} )</b>"),
                 ("السؤال الثالث: الحديث الشريف (15 درجة)", f"أكتب حديثاً نبوياً شريفاً في: <b>( {hadith_text} )</b>."),
                 ("السؤال الرابع: العقائد والعبادات (15 درجة)", f"أجب عن الأسئلة الآتية:<br/>{q4_text}"),
                 ("السؤال الخامس: السيرة النبوية والآداب الإسلامية (20 درجة)", f"أكمل الفراغات الآتية بما يناسبها:<br/>{q5_text}")
@@ -144,7 +107,6 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
                 story.append(t_q)
                 story.append(Spacer(1, 8))
 
-            # التوقيع
             footer_data = [[
                 Paragraph("<b>مدرس المادة: حيدر محمد عبد الكريم</b>", arabic_style),
                 Paragraph("<b>توقيع اللجنة الامتحانية / الإدارة</b>", arabic_style)
@@ -164,4 +126,4 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
                     mime="application/pdf"
                 )
         except Exception as ex:
-            st.error(f"حدث خطأ أثناء معالجة البيانات وتوليد الـ PDF: {ex}")
+            st.error(f"حدث خطأ أثناء معالجة البيانات: {ex}")
