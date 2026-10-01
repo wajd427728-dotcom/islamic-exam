@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import random
-from weasyprint import HTML
 
-st.set_page_title_config(page_title="منظومة امتحانات التربية الإسلامية", layout="centered")
+# ضبط إعدادات الصفحة
+st.set_page_config(page_title="منظومة امتحانات التربية الإسلامية", layout="centered")
 
 st.markdown("<h2 style='text-align: center;'>منظومة توليد الامتحانات المباشرة</h2>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center; color: #555;'>مدرسة الذاريات الابتدائية المختلطة</h3>", unsafe_allow_html=True)
@@ -12,19 +12,29 @@ st.markdown("---")
 
 EXCEL_FILE = 'بنك_اسئلة_التربية_الاسلامية.xlsx'
 
+# التحقق من وجود WeasyPrint
+try:
+    from weasyprint import HTML
+    WEASYPRINT_AVAILABLE = True
+except ImportError:
+    WEASYPRINT_AVAILABLE = False
+
 try:
     xls = pd.ExcelFile(EXCEL_FILE)
     sheet_names = xls.sheet_names
+    st.success("تم الاتصال ببنك الأسئلة بنجاح! 🟢")
 except Exception as e:
-    st.error(f"تنبيه: لم يتم العثور على ملف Excel لبنك الأسئلة ({EXCEL_FILE}). الرجاء التأكد من رفعه للمستودع.")
+    st.error(f"تنبيه: لم يتم العثور على ملف Excel لبنك الأسئلة ({EXCEL_FILE}). الرجاء التأكد من رفعه على GitHub بنفس الاسم.")
     sheet_names = []
 
 if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80 درجة)", type="primary", use_container_width=True):
     if not sheet_names:
-        st.error("الرجاء رفع ملف الـ Excel أولاً لتشغيل التوليد.")
+        st.error("الرجاء رفع ملف الـ Excel الخاص ببنك الأسئلة أولاً.")
+    elif not WEASYPRINT_AVAILABLE:
+        st.error("جاري تحميل مكتبة الـ PDF على السيرفر، يرجى إعادة تحديث الصفحة بعد دقيقة.")
     else:
         try:
-            # قراءة الأسئلة العشوائية لكل قسم
+            # قراءة الأسئلة عشوائياً
             df_mne = pd.read_excel(xls, 'المعاني والتفسير')
             vocab_sample = df_mne.sample(n=min(6, len(df_mne)))
             interp_sample = df_mne.dropna(subset=['المعنى العام']).sample(n=1) if 'المعنى العام' in df_mne.columns else df_mne.sample(n=1)
@@ -38,7 +48,7 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
             df_sir = pd.read_excel(xls, 'السيرة النبوية والآداب الإسلامية')
             sir_sample = df_sir.sample(n=min(2, len(df_sir)))
 
-            # بناء قالب HTML
+            # بناء تصميم نموذج الامتحان
             html_template = f"""
             <!DOCTYPE html>
             <html lang="ar" dir="rtl">
@@ -137,8 +147,8 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
                 st.download_button(
                     label="📥 تحميل ملف الامتحان (PDF)",
                     data=pdf_file,
-                    file_name="نموذج_امتحان_التربية_الاسلامية_الخامس_الابتدائي.pdf",
+                    file_name="امتحان_التربية_الاسلامية_الخامس_الابتدائي.pdf",
                     mime="application/pdf"
                 )
         except Exception as ex:
-            st.error(f"حدث خطأ أثناء معالجة الأسئلة أو توليد الـ PDF: {ex}")
+            st.error(f"حدث خطأ أثناء معالجة الأسئلة: {ex}")
