@@ -15,18 +15,24 @@ st.markdown("<h3 style='text-align: center; color: #555;'>مدرسة الذار�
 st.markdown("<p style='text-align: center;'>الصف: الخامس الابتدائي | العام الدراسي: 2026 / 2027 م | معلم المادة: حيدر محمد عبد الكريم</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-EXCEL_FILE = 'قرآن والتربية الاسلامية_الصف الخامس_2026_2027.xlsx'
+# البحث التلقائي عن أي ملف إكسل موجود في المستودع
+excel_files = [f for f in os.listdir('.') if f.endswith('.xlsx') and not f.startswith('~$')]
 
-try:
-    xls = pd.ExcelFile(EXCEL_FILE)
-    st.success("تم الاتصال ببنك الأسئلة وجاهزية المنظومة بنجاح! 🟢")
-except Exception as e:
-    st.error(f"خطأ في قراءة ملف الأكسل، تأكد من مطابقة اسم الملف تماماً: {e}")
+if excel_files:
+    EXCEL_FILE = excel_files[0]
+    try:
+        xls = pd.ExcelFile(EXCEL_FILE)
+        st.success(f"تم الاتصال ببنك الأسئلة ({EXCEL_FILE}) بنجاح! 🟢")
+    except Exception as e:
+        st.error(f"خطأ في قراءة محتوى ملف الأكسل: {e}")
+        xls = None
+else:
+    st.error("لم يتم العثور على أي ملف إكسل لبنك الأسئلة في المستودع. الرجاء التأكد من رفع الملف.")
     xls = None
 
 if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80 درجة)", type="primary", use_container_width=True):
     if xls is None:
-        st.error("الرجاء التأكد من وجود ملف بنك الأسئلة.")
+        st.error("الرجاء التأكد من توفر ملف بنك الأسئلة في المستودع.")
     else:
         try:
             df_mne = pd.read_excel(xls, 'المعاني والتفسير')
