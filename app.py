@@ -146,4 +146,5 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
                     file_name="نموذج_امتحان_التربية_الاسلامية_الخامس_الابتدائي.pdf",
                     mime="application/pdf"
                 )
-        except Exception as ex:
+        except Exception as ex:st.error(f"حدث خطأ أثناء معالجة البيانات: {ex}")
+            
