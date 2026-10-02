@@ -15,48 +15,41 @@ st.markdown("<h3 style='text-align: center; color: #555;'>مدرسة الذار�
 st.markdown("<p style='text-align: center;'>الصف: الخامس الابتدائي | العام الدراسي: 2026 / 2027 م | معلم المادة: حيدر محمد عبد الكريم</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# البحث التلقائي عن ملف الإكسل
+# البحث عن ملف الإكسل
 excel_files = [f for f in os.listdir('.') if f.endswith('.xlsx') and not f.startswith('~$')]
 
 if excel_files:
     EXCEL_FILE = excel_files[0]
     try:
         xls = pd.ExcelFile(EXCEL_FILE)
-        st.success(f"تم الاتصال ببنك الأسئلة بنجاح! 🟢")
+        st.success("تم الاتصال ببنك الأسئلة بنجاح! 🟢")
     except Exception as e:
-        st.error(f"خطأ في قراءة ملف الإكسل: {e}")
+        st.error(f"خطأ في قراءة الملف: {e}")
         xls = None
 else:
-    st.error("لم يتم العثور على ملف إكسل لبنك الأسئلة في المستودع.")
+    st.error("لم يتم العثور على ملف الإكسل في المستودع.")
     xls = None
 
 if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80 درجة)", type="primary", use_container_width=True):
     if xls is None:
-        st.error("الرجاء التأكد من توفر ملف بنك الأسئلة.")
+        st.error("الرجاء التأكد من وجود ملف بنك الأسئلة.")
     else:
         try:
-            # قراءة ورقات العمل بالاعتماد على ترتيبها لتفادي مشاكل الهمزات والمسافات تماماً
-            sheet_names = xls.sheet_names
+            sheets = xls.sheet_names
 
-            def safe_read(index):
-                if index < len(sheet_names):
-                    return pd.read_excel(xls, sheet_names[index])
-                return pd.read_excel(xls, sheet_names[0])
+            # قراءة الأوراق حسب الترتيب (0, 1, 2, 3, 4)
+            df_qur = pd.read_excel(xls, sheets[0]) if len(sheets) > 0 else None
+            df_mne = pd.read_excel(xls, sheets[1]) if len(sheets) > 1 else df_qur
+            df_had = pd.read_excel(xls, sheets[2]) if len(sheets) > 2 else df_qur
+            df_aqd = pd.read_excel(xls, sheets[3]) if len(sheets) > 3 else df_qur
+            df_sir = pd.read_excel(xls, sheets[4]) if len(sheets) > 4 else df_qur
 
-            df_qur = safe_read(0)  # القرآن الكريم
-            df_mne = safe_read(1)  # المعاني والتفسير
-            df_had = safe_read(2)  # الحديث الشريف
-            df_aqd = safe_read(3)  # العقائد والعبادات
-            df_sir = safe_read(4)  # السيرة النبوية والآداب الإسلامية
-
-            # اختيار عينات الأسئلة
             vocab_sample = df_mne.sample(n=min(3, len(df_mne)))
             interp_sample = df_mne.sample(n=1)
             hadith_sample = df_had.sample(n=1).iloc[0]
             aqd_sample = df_aqd.sample(n=min(2, len(df_aqd)))
             sir_sample = df_sir.sample(n=min(2, len(df_sir)))
 
-            # إنشاء PDF
             pdf_filename = "exam_output.pdf"
             doc = SimpleDocTemplate(pdf_filename, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
             story = []
@@ -71,7 +64,6 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
                 alignment=2
             )
 
-            # ترويسة الامتحان
             header_data = [
                 [
                     Paragraph("<b>جمهورية العراق<br/>وزارة التربية<br/>مدرسة الذاريات الابتدائية المختلطة</b>", arabic_style),
@@ -89,7 +81,6 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
             story.append(t_header)
             story.append(Spacer(1, 10))
 
-            # بيانات التلميذ
             info_data = [[
                 Paragraph("<b>اسم التلميذ:</b> ...........................................................", arabic_style),
                 Paragraph("<b>الشعبة:</b> ........", arabic_style),
@@ -99,7 +90,6 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
             story.append(t_info)
             story.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceAfter=10))
 
-            # جهيز الكلمات والنصوص
             vocab_col = vocab_sample.columns[0]
             vocab_text = " ، ".join(vocab_sample[vocab_col].astype(str).tolist())
             
@@ -115,7 +105,6 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
             sir_col = sir_sample.columns[0]
             q5_text = "<br/>".join([f"{i+1}. {q}" for i, q in enumerate(sir_sample[sir_col].astype(str).tolist())])
 
-            # الأسئلة
             questions_content = [
                 ("السؤال الأول: القرآن الكريم (20 درجة)", "أكتب من سورة (الملك) من قوله تعالى: ( تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ ... ) إلى قوله تعالى: ( ... وَهُوَ الْعَزِيزُ الْغَفُورُ )."),
                 ("السؤال الثاني: المعاني والتفسير (10 درجات)", f"أ) [5 درجات] بين معاني الكلمات الآتية:<br/>( {vocab_text} )<br/><br/>ب) [5 درجات] ما المعنى العام للآية الكريمة التالية:<br/><b>( {interp_text} )</b>"),
