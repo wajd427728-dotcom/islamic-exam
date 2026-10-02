@@ -15,7 +15,6 @@ st.markdown("<h3 style='text-align: center; color: #555;'>مدرسة الذار�
 st.markdown("<p style='text-align: center;'>الصف: الخامس الابتدائي | العام الدراسي: 2026 / 2027 م | معلم المادة: حيدر محمد عبد الكريم</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# البحث عن ملف الإكسل
 excel_files = [f for f in os.listdir('.') if f.endswith('.xlsx') and not f.startswith('~$')]
 
 if excel_files:
@@ -37,18 +36,22 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
         try:
             sheets = xls.sheet_names
 
-            # قراءة الأوراق حسب الترتيب (0, 1, 2, 3, 4)
-            df_qur = pd.read_excel(xls, sheets[0]) if len(sheets) > 0 else None
-            df_mne = pd.read_excel(xls, sheets[1]) if len(sheets) > 1 else df_qur
-            df_had = pd.read_excel(xls, sheets[2]) if len(sheets) > 2 else df_qur
-            df_aqd = pd.read_excel(xls, sheets[3]) if len(sheets) > 3 else df_qur
-            df_sir = pd.read_excel(xls, sheets[4]) if len(sheets) > 4 else df_qur
+            def clean_df(df):
+                df = df.dropna(how='all')
+                return df
 
-            vocab_sample = df_mne.sample(n=min(3, len(df_mne)))
-            interp_sample = df_mne.sample(n=1)
-            hadith_sample = df_had.sample(n=1).iloc[0]
-            aqd_sample = df_aqd.sample(n=min(2, len(df_aqd)))
-            sir_sample = df_sir.sample(n=min(2, len(df_sir)))
+            df_qur = clean_df(pd.read_excel(xls, sheets[0])) if len(sheets) > 0 else None
+            df_mne = clean_df(pd.read_excel(xls, sheets[1])) if len(sheets) > 1 else df_qur
+            df_had = clean_df(pd.read_excel(xls, sheets[2])) if len(sheets) > 2 else df_qur
+            df_aqd = clean_df(pd.read_excel(xls, sheets[3])) if len(sheets) > 3 else df_qur
+            df_sir = clean_df(pd.read_excel(xls, sheets[4])) if len(sheets) > 4 else df_qur
+
+            # اختيار العينات وتجنب القيم الفارغة (NaN)
+            vocab_sample = df_mne.dropna(subset=[df_mne.columns[0]]).sample(n=min(3, len(df_mne)))
+            interp_sample = df_mne.dropna(subset=[df_mne.columns[1]]).sample(n=1)
+            hadith_sample = df_had.dropna(subset=[df_had.columns[0]]).sample(n=1).iloc[0]
+            aqd_sample = df_aqd.dropna(subset=[df_aqd.columns[0]]).sample(n=min(2, len(df_aqd)))
+            sir_sample = df_sir.dropna(subset=[df_sir.columns[0]]).sample(n=min(2, len(df_sir)))
 
             pdf_filename = "exam_output.pdf"
             doc = SimpleDocTemplate(pdf_filename, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
@@ -93,21 +96,22 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
             vocab_col = vocab_sample.columns[0]
             vocab_text = " ، ".join(vocab_sample[vocab_col].astype(str).tolist())
             
-            interp_col = interp_sample.columns[0]
-            interp_text = str(interp_sample.iloc[0][interp_col])
+            interp_col = interp_sample.columns[1]
+            interp_word_col = interp_sample.columns[0]
+            interp_text = f"{str(interp_sample.iloc[0][interp_word_col])} : {str(interp_sample.iloc[0][interp_col])}"
 
             hadith_col = hadith_sample.index[0]
             hadith_text = str(hadith_sample[hadith_col])
 
             aqd_col = aqd_sample.columns[0]
-            q4_text = "<br/>".join([f"{i+1}. {q}" for i, q in enumerate(aqd_sample[aqd_col].astype(str).tolist())])
+            q4_text = "<br/>".join([f"{i+1}. {str(q)}" for i, q in enumerate(aqd_sample[aqd_col].tolist())])
 
             sir_col = sir_sample.columns[0]
-            q5_text = "<br/>".join([f"{i+1}. {q}" for i, q in enumerate(sir_sample[sir_col].astype(str).tolist())])
+            q5_text = "<br/>".join([f"{i+1}. {str(q)}" for i, q in enumerate(sir_sample[sir_col].tolist())])
 
             questions_content = [
                 ("السؤال الأول: القرآن الكريم (20 درجة)", "أكتب من سورة (الملك) من قوله تعالى: ( تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ ... ) إلى قوله تعالى: ( ... وَهُوَ الْعَزِيزُ الْغَفُورُ )."),
-                ("السؤال الثاني: المعاني والتفسير (10 درجات)", f"أ) [5 درجات] بين معاني الكلمات الآتية:<br/>( {vocab_text} )<br/><br/>ب) [5 درجات] ما المعنى العام للآية الكريمة التالية:<br/><b>( {interp_text} )</b>"),
+                ("السؤال الثاني: المعاني والتفسير (10 درجات)", f"أ) [5 درجات] بين معاني الكلمات الآتية:<br/>( {vocab_text} )<br/><br/>ب) [5 درجات] ما المعنى العام للآية الكريمة أو الكلمة التالية:<br/><b>( {interp_text} )</b>"),
                 ("السؤال الثالث: الحديث الشريف (15 درجة)", f"أكتب حديثاً نبوياً شريفاً في: <b>( {hadith_text} )</b>."),
                 ("السؤال الرابع: العقائد والعبادات (15 درجة)", f"أجب عن الأسئلة الآتية:<br/>{q4_text}"),
                 ("السؤال الخامس: السيرة النبوية والآداب الإسلامية (20 درجة)", f"أكمل الفراغات الآتية بما يناسبها:<br/>{q5_text}")
@@ -143,4 +147,3 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
                     mime="application/pdf"
                 )
         except Exception as ex:
-            st.error(f"حدث خطأ أثناء معالجة البيانات: {ex}")
