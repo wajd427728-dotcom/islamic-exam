@@ -36,22 +36,30 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
         try:
             sheets = xls.sheet_names
 
-            def clean_df(df):
-                df = df.dropna(how='all')
-                return df
+            def get_clean_df(sheet_idx):
+                if sheet_idx < len(sheets):
+                    df = pd.read_excel(xls, sheets[sheet_idx])
+                    return df.dropna(how='all')
+                return pd.DataFrame()
 
-            df_qur = clean_df(pd.read_excel(xls, sheets[0])) if len(sheets) > 0 else None
-            df_mne = clean_df(pd.read_excel(xls, sheets[1])) if len(sheets) > 1 else df_qur
-            df_had = clean_df(pd.read_excel(xls, sheets[2])) if len(sheets) > 2 else df_qur
-            df_aqd = clean_df(pd.read_excel(xls, sheets[3])) if len(sheets) > 3 else df_qur
-            df_sir = clean_df(pd.read_excel(xls, sheets[4])) if len(sheets) > 4 else df_qur
+            df_qur = get_clean_df(0)
+            df_mne = get_clean_df(1)
+            df_had = get_clean_df(2)
+            df_aqd = get_clean_df(3)
+            df_sir = get_clean_df(4)
 
-            # اختيار العينات وتجنب القيم الفارغة (NaN)
-            vocab_sample = df_mne.dropna(subset=[df_mne.columns[0]]).sample(n=min(3, len(df_mne)))
-            interp_sample = df_mne.dropna(subset=[df_mne.columns[1]]).sample(n=1)
-            hadith_sample = df_had.dropna(subset=[df_had.columns[0]]).sample(n=1).iloc[0]
-            aqd_sample = df_aqd.dropna(subset=[df_aqd.columns[0]]).sample(n=min(2, len(df_aqd)))
-            sir_sample = df_sir.dropna(subset=[df_sir.columns[0]]).sample(n=min(2, len(df_sir)))
+            # سحب العينات بأمان تام حسب المتوفر
+            vocab_n = min(3, len(df_mne)) if len(df_mne) > 0 else 1
+            vocab_sample = df_mne.sample(n=vocab_n) if vocab_n > 0 else pd.DataFrame()
+            
+            interp_sample = df_mne.sample(n=1) if len(df_mne) > 0 else pd.DataFrame()
+            hadith_sample = df_had.sample(n=1).iloc[0] if len(df_had) > 0 else None
+            
+            aqd_n = min(2, len(df_aqd)) if len(df_aqd) > 0 else 1
+            aqd_sample = df_aqd.sample(n=aqd_n) if aqd_n > 0 else pd.DataFrame()
+            
+            sir_n = min(2, len(df_sir)) if len(df_sir) > 0 else 1
+            sir_sample = df_sir.sample(n=sir_n) if sir_n > 0 else pd.DataFrame()
 
             pdf_filename = "exam_output.pdf"
             doc = SimpleDocTemplate(pdf_filename, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
@@ -93,21 +101,18 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
             story.append(t_info)
             story.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceAfter=10))
 
-            vocab_col = vocab_sample.columns[0]
-            vocab_text = " ، ".join(vocab_sample[vocab_col].astype(str).tolist())
+            vocab_text = " ، ".join(vocab_sample.iloc[:, 0].astype(str).tolist()) if not vocab_sample.empty else ""
             
-            interp_col = interp_sample.columns[1]
-            interp_word_col = interp_sample.columns[0]
-            interp_text = f"{str(interp_sample.iloc[0][interp_word_col])} : {str(interp_sample.iloc[0][interp_col])}"
+            if not interp_sample.empty and len(interp_sample.columns) > 1:
+                interp_text = f"{str(interp_sample.iloc[0, 0])} : {str(interp_sample.iloc[0, 1])}"
+            elif not interp_sample.empty:
+                interp_text = str(interp_sample.iloc[0, 0])
+            else:
+                interp_text = ""
 
-            hadith_col = hadith_sample.index[0]
-            hadith_text = str(hadith_sample[hadith_col])
-
-            aqd_col = aqd_sample.columns[0]
-            q4_text = "<br/>".join([f"{i+1}. {str(q)}" for i, q in enumerate(aqd_sample[aqd_col].tolist())])
-
-            sir_col = sir_sample.columns[0]
-            q5_text = "<br/>".join([f"{i+1}. {str(q)}" for i, q in enumerate(sir_sample[sir_col].tolist())])
+            hadith_text = str(hadith_sample.iloc[0]) if hadith_sample is not None else ""
+            q4_text = "<br/>".join([f"{i+1}. {str(q)}" for i, q in enumerate(aqd_sample.iloc[:, 0].tolist())]) if not aqd_sample.empty else ""
+            q5_text = "<br/>".join([f"{i+1}. {str(q)}" for i, q in enumerate(sir_sample.iloc[:, 0].tolist())]) if not sir_sample.empty else ""
 
             questions_content = [
                 ("السؤال الأول: القرآن الكريم (20 درجة)", "أكتب من سورة (الملك) من قوله تعالى: ( تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ ... ) إلى قوله تعالى: ( ... وَهُوَ الْعَزِيزُ الْغَفُورُ )."),
@@ -146,5 +151,5 @@ if st.button("📄 توليد ورقة الامتحان الرسمية (PDF - 80
                     file_name="نموذج_امتحان_التربية_الاسلامية_الخامس_الابتدائي.pdf",
                     mime="application/pdf"
                 )
-        except Exception as ex:st.error(f"حدث خطأ أثناء معالجة البيانات: {ex}")
-            
+        except Exception as ex:
+            st.error(f"حدث خطأ أثناء معالجة البيانات: {ex}")
