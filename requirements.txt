@@ -1,5 +1,6 @@
+streamlit
 python-docx
 reportlab
-pillow
+Pillow
 arabic-reshaper
 python-bidi
