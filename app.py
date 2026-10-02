@@ -1,13 +1,17 @@
 import streamlit as st
 import random
 from io import BytesIO
+import urllib.request
+import os
+
+# مكتبات التعامل مع Word
 import docx
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-# استيراد مكتبات ReportLab لتوليد الـ PDF
+# مكتبات ReportLab لتوليد الـ PDF المعالجة مع دعم اللغة العربية والتضمين الكامل
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -15,10 +19,45 @@ from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
+# مكتبة تشكيل وإعادة ترتيب النصوص العربية للـ PDF (RTL + Bidi)
+import arabic_reshaper
+from bidi.algorithm import get_display
+
 st.set_page_config(page_title="منظومة توليد الامتحانات", layout="wide")
 
 st.title("منظومة توليد الامتحانات المباشرة - مدرسة الذاريات")
 st.write("الصف الخامس الابتدائي | المعلم: حيدر محمد عبد الكريم")
+
+# ---------------------------------------------------------
+# 0. تحميل وتثبيت خط عربي يدعم التضمين الكامل (Embedded Font)
+# ---------------------------------------------------------
+FONT_PATH = "Amiri-Regular.ttf"
+
+@st.cache_resource
+def load_arabic_font():
+    if not os.path.exists(FONT_PATH):
+        # تحميل خط أميري (Amiri) الشهير والمفتوح المصدر
+        url = "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Regular.ttf"
+        try:
+            urllib.request.urlretrieve(url, FONT_PATH)
+        except Exception as e:
+            pass
+
+    if os.path.exists(FONT_PATH):
+        # تسجيل الخط وتضمينه بالكامل داخل الـ PDF
+        pdfmetrics.registerFont(TTFont('AmiriFont', FONT_PATH))
+        return 'AmiriFont'
+    return 'Helvetica'
+
+ARABIC_FONT_NAME = load_arabic_font()
+
+def ar_text(text):
+    """دالة لتهيئة النص العربي للعرض الصحيح اتجاهاً وشكلاً في ReportLab"""
+    if not text:
+        return ""
+    reshaped_text = arabic_reshaper.reshape(text)
+    bidi_text = get_display(reshaped_text)
+    return bidi_text
 
 # ---------------------------------------------------------
 # 1. إعدادات القوائم المنسدلة
@@ -190,78 +229,78 @@ def generate_word(selected_type, selected_year, selected_time, q1_samples, words
     return buffer
 
 # ---------------------------------------------------------
-# 4. دالة توليد ملف PDF
+# 4. دالة توليد ملف PDF متوافق 100% مع Foxit Reader (مع تضمين الخط)
 # ---------------------------------------------------------
 def generate_pdf(selected_type, selected_year, selected_time, q1_samples, words_str, tafseer, hadith, beliefs, seerah):
     buffer = BytesIO()
-    doc_pdf = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    doc_pdf = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=35, leftMargin=35, topMargin=35, bottomMargin=35)
     styles = getSampleStyleSheet()
     
-    font_name = 'Helvetica' # خط افتراضي متوافق
+    font_name = ARABIC_FONT_NAME
     
     rtl_style = ParagraphStyle(
         'RTLStyle', parent=styles['Normal'],
-        fontName=font_name, fontSize=10, leading=14, alignment=2
+        fontName=font_name, fontSize=11, leading=16, alignment=2 # Right
     )
-    center_style = ParagraphStyle('CenterStyle', parent=rtl_style, alignment=1)
-    left_style = ParagraphStyle('LeftStyle', parent=rtl_style, alignment=0)
+    center_style = ParagraphStyle('CenterStyle', parent=rtl_style, alignment=1) # Center
+    left_style = ParagraphStyle('LeftStyle', parent=rtl_style, alignment=0)   # Left
 
     story = []
 
     header_data = [
         [
-            Paragraph(f"المادة : التربية الإسلامية<br/>الصف : الخامس الابتدائي<br/>الزمن : {selected_time}", rtl_style),
-            Paragraph(f"بسم الله الرحمن الرحيم<br/>{selected_type}<br/>للعام الدراسي {selected_year}", center_style),
-            Paragraph("إدارة<br/>مدرسة الذاريات<br/>الابتدائية المختلطة", left_style)
+            Paragraph(ar_text(f"المادة : التربية الإسلامية\nالصف : الخامس الابتدائي\nالزمن : {selected_time}").replace("\n", "<br/>"), rtl_style),
+            Paragraph(ar_text(f"بسم الله الرحمن الرحيم\n{selected_type}\nللعام الدراسي {selected_year}").replace("\n", "<br/>"), center_style),
+            Paragraph(ar_text("إدارة\nمدرسة الذاريات\nالابتدائية المختلطة").replace("\n", "<br/>"), left_style)
         ]
     ]
     t = Table(header_data, colWidths=[170, 170, 170])
-    t.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('BOTTOMPADDING', (0,0), (-1,-1), 10)]))
+    t.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('BOTTOMPADDING', (0,0), (-1,-1), 8)]))
     story.append(t)
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 8))
 
     def add_sec(text):
-        story.append(Paragraph(f"<b>{text}</b>", rtl_style))
-        story.append(Spacer(1, 4))
+        story.append(Paragraph(ar_text(text), rtl_style))
+        story.append(Spacer(1, 3))
 
     add_sec("القرآن الكريم : ( 20 درجة )")
-    story.append(Paragraph("<b>س1 : أجب عن أحد الفرعين :</b>", rtl_style))
-    story.append(Paragraph(f"أ / اكتب ما تحفظه من {q1_samples[0]}", rtl_style))
-    story.append(Paragraph(f"ب / اكتب ما تحفظه من {q1_samples[1]}", rtl_style))
-    story.append(Spacer(1, 8))
+    story.append(Paragraph(ar_text("س1 : أجب عن أحد الفرعين :"), rtl_style))
+    story.append(Paragraph(ar_text(f"أ / اكتب ما تحفظه من {q1_samples[0]}"), rtl_style))
+    story.append(Paragraph(ar_text(f"ب / اكتب ما تحفظه من {q1_samples[1]}"), rtl_style))
+    story.append(Spacer(1, 6))
 
     add_sec("المعاني والتفسير : ( 10 درجات )")
-    story.append(Paragraph("<b>س2 : أجب عن ما يلي :</b>", rtl_style))
-    story.append(Paragraph("أ / أعط معاني لخمس من الكلمات الآتية :", rtl_style))
-    story.append(Paragraph(f"( {words_str} )", center_style))
-    story.append(Paragraph(f"ب / {tafseer}", rtl_style))
-    story.append(Spacer(1, 8))
+    story.append(Paragraph(ar_text("س2 : أجب عن ما يلي :"), rtl_style))
+    story.append(Paragraph(ar_text("أ / أعط معاني لخمس من الكلمات الآتية :"), rtl_style))
+    story.append(Paragraph(ar_text(f"( {words_str} )"), center_style))
+    story.append(Paragraph(ar_text(f"ب / {tafseer}"), rtl_style))
+    story.append(Spacer(1, 6))
 
     add_sec("الحديث الشريف : ( 15 درجة )")
-    story.append(Paragraph("<b>س3 : الإجابة عن أحد الفرعين :</b>", rtl_style))
-    story.append(Paragraph(f"أ / {hadith[0]}            ب / {hadith[1]}", rtl_style))
-    story.append(Spacer(1, 8))
+    story.append(Paragraph(ar_text("س3 : الإجابة عن أحد الفرعين :"), rtl_style))
+    story.append(Paragraph(ar_text(f"أ / {hadith[0]}            ب / {hadith[1]}"), rtl_style))
+    story.append(Spacer(1, 6))
 
     add_sec("العقائد والعبادات : ( 15 درجة )")
-    story.append(Paragraph("<b>س4 : أجب بكلمة ( صح ) عن العبارة الصحيحة وكلمة ( خطأ ) عن العبارة الخاطئة :</b>", rtl_style))
+    story.append(Paragraph(ar_text("س4 : أجب بكلمة ( صح ) عن العبارة الصحيحة وكلمة ( خطأ ) عن العبارة الخاطئة :"), rtl_style))
     for idx, b in enumerate(beliefs, 1):
-        story.append(Paragraph(f"{idx}- {b}", rtl_style))
-    story.append(Spacer(1, 8))
+        story.append(Paragraph(ar_text(f"{idx}- {b}"), rtl_style))
+    story.append(Spacer(1, 6))
 
     add_sec("السيرة النبوية والآداب الإسلامية : ( 20 درجة )")
-    story.append(Paragraph("<b>س5 : املأ الفراغات الآتية :</b>", rtl_style))
+    story.append(Paragraph(ar_text("س5 : املأ الفراغات الآتية :"), rtl_style))
     for idx, s in enumerate(seerah, 1):
-        story.append(Paragraph(f"{idx}- {s}", rtl_style))
-    story.append(Spacer(1, 15))
+        story.append(Paragraph(ar_text(f"{idx}- {s}"), rtl_style))
+    story.append(Spacer(1, 10))
 
-    story.append(Paragraph("<b>معلم المادة<br/>حيدر محمد عبد الكريم</b>", left_style))
+    story.append(Paragraph(ar_text("معلم المادة\nحيدر محمد عبد الكريم").replace("\n", "<br/>"), left_style))
 
     doc_pdf.build(story)
     buffer.seek(0)
     return buffer
 
 # ---------------------------------------------------------
-# 5. توليد المحتوى وتنزيله في الواجهة
+# 5. الواجهة والتوليد
 # ---------------------------------------------------------
 if st.button("🎲 توليد نموذج الامتحان الجديد"):
     q1_samples = random.sample(QUESTION_BANK["q1_quran"], 2)
@@ -274,7 +313,7 @@ if st.button("🎲 توليد نموذج الامتحان الجديد"):
 
     st.session_state['exam_word'] = generate_word(exam_type, academic_year, time_limit, q1_samples, words_str, tafseer, hadith, beliefs, seerah)
     st.session_state['exam_pdf'] = generate_pdf(exam_type, academic_year, time_limit, q1_samples, words_str, tafseer, hadith, beliefs, seerah)
-    st.success("تم توليد نموذجي الأسئلة (Word و PDF) بنجاح!")
+    st.success("تم توليد نموذجي الأسئلة (Word و PDF) بنجاح متكامل!")
 
 col1, col2 = st.columns(2)
 
@@ -290,7 +329,7 @@ with col1:
 with col2:
     if 'exam_pdf' in st.session_state:
         st.download_button(
-            label="📄 تحميل ملف PDF (جاهز للطباعة)",
+            label="📄 تحميل ملف PDF (مضمون الخِطاط لـ Foxit Reader)",
             data=st.session_state['exam_pdf'],
             file_name=f"Exam_{exam_type}.pdf",
             mime="application/pdf"
