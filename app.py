@@ -1,7 +1,6 @@
 import streamlit as st
 import random
 from io import BytesIO
-import urllib.request
 import os
 
 # مكتبات التعامل مع Word
@@ -11,15 +10,14 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-# مكتبات ReportLab لتوليد الـ PDF المعالجة مع دعم اللغة العربية والتضمين الكامل
+# مكتبات ReportLab لتوليد الـ PDF
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-# مكتبة تشكيل وإعادة ترتيب النصوص العربية للـ PDF (RTL + Bidi)
+# مكتبات معالجة اللغة العربية للـ PDF
 import arabic_reshaper
 from bidi.algorithm import get_display
 
@@ -29,35 +27,37 @@ st.title("منظومة توليد الامتحانات المباشرة - مدر
 st.write("الصف الخامس الابتدائي | المعلم: حيدر محمد عبد الكريم")
 
 # ---------------------------------------------------------
-# 0. تحميل وتثبيت خط عربي يدعم التضمين الكامل (Embedded Font)
+# 0. تسجيل الخط العربي (محلياً فقط بدون إنترنت لتجنب مشاكل الشبكة)
 # ---------------------------------------------------------
 FONT_PATH = "Amiri-Regular.ttf"
 
 @st.cache_resource
-def load_arabic_font():
-    if not os.path.exists(FONT_PATH):
-        # تحميل خط أميري (Amiri) الشهير والمفتوح المصدر
-        url = "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Regular.ttf"
-        try:
-            urllib.request.urlretrieve(url, FONT_PATH)
-        except Exception as e:
-            pass
+def load_and_register_arabic_font():
+    # البحث عن الخط محلياً في مجلد المشروع أو النظام
+    sys_fonts = [
+        FONT_PATH,
+        "/usr/share/fonts/truetype/fonts-arabic-extra/amiri-regular.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    ]
+    
+    for sf in sys_fonts:
+        if os.path.exists(sf):
+            try:
+                pdfmetrics.registerFont(TTFont('AmiriFont', sf))
+                return 'AmiriFont'
+            except Exception:
+                pass
 
-    if os.path.exists(FONT_PATH):
-        # تسجيل الخط وتضمينه بالكامل داخل الـ PDF
-        pdfmetrics.registerFont(TTFont('AmiriFont', FONT_PATH))
-        return 'AmiriFont'
     return 'Helvetica'
 
-ARABIC_FONT_NAME = load_arabic_font()
+ARABIC_FONT_NAME = load_and_register_arabic_font()
 
 def ar_text(text):
-    """دالة لتهيئة النص العربي للعرض الصحيح اتجاهاً وشكلاً في ReportLab"""
+    """دالة لتهيئة النص العربي وتوصيل الأحرف لاتجاة RTL"""
     if not text:
         return ""
     reshaped_text = arabic_reshaper.reshape(text)
-    bidi_text = get_display(reshaped_text)
-    return bidi_text
+    return get_display(reshaped_text)
 
 # ---------------------------------------------------------
 # 1. إعدادات القوائم المنسدلة
@@ -86,7 +86,7 @@ time_limit = st.sidebar.selectbox(
 )
 
 # ---------------------------------------------------------
-# 2. بنك الأسئلة
+# 2. بنك الأسئلة المعتمد والثابت (التغيير يتم فقط من داخله)
 # ---------------------------------------------------------
 QUESTION_BANK = {
     "q1_quran": [
@@ -229,7 +229,7 @@ def generate_word(selected_type, selected_year, selected_time, q1_samples, words
     return buffer
 
 # ---------------------------------------------------------
-# 4. دالة توليد ملف PDF متوافق 100% مع Foxit Reader (مع تضمين الخط)
+# 4. دالة توليد ملف PDF متوافق 100% مع Foxit Reader
 # ---------------------------------------------------------
 def generate_pdf(selected_type, selected_year, selected_time, q1_samples, words_str, tafseer, hadith, beliefs, seerah):
     buffer = BytesIO()
@@ -300,9 +300,9 @@ def generate_pdf(selected_type, selected_year, selected_time, q1_samples, words_
     return buffer
 
 # ---------------------------------------------------------
-# 5. الواجهة والتوليد
+# 5. الواجهة والتوليد العشوائي (حصرياً من بنك الأسئلة)
 # ---------------------------------------------------------
-if st.button("🎲 توليد نموذج الامتحان الجديد"):
+if st.button("🎲 توليد نموذج امتحان جديد (من بنك الأسئلة المعتمد)"):
     q1_samples = random.sample(QUESTION_BANK["q1_quran"], 2)
     words = random.sample(QUESTION_BANK["q2_meanings"], 6)
     words_str = "    ".join([f"{i+1}- {w}" for i, w in enumerate(words)])
@@ -313,7 +313,7 @@ if st.button("🎲 توليد نموذج الامتحان الجديد"):
 
     st.session_state['exam_word'] = generate_word(exam_type, academic_year, time_limit, q1_samples, words_str, tafseer, hadith, beliefs, seerah)
     st.session_state['exam_pdf'] = generate_pdf(exam_type, academic_year, time_limit, q1_samples, words_str, tafseer, hadith, beliefs, seerah)
-    st.success("تم توليد نموذجي الأسئلة (Word و PDF) بنجاح متكامل!")
+    st.success("تم تبديل الأسئلة وتوليد نموذج جديد من بنك الأسئلة بنجاح!")
 
 col1, col2 = st.columns(2)
 
@@ -329,7 +329,7 @@ with col1:
 with col2:
     if 'exam_pdf' in st.session_state:
         st.download_button(
-            label="📄 تحميل ملف PDF (مضمون الخِطاط لـ Foxit Reader)",
+            label="📄 تحميل ملف PDF (مضمون لـ Foxit Reader)",
             data=st.session_state['exam_pdf'],
             file_name=f"Exam_{exam_type}.pdf",
             mime="application/pdf"
