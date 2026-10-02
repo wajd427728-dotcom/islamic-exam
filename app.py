@@ -1,15 +1,13 @@
 import streamlit as st
 from docx import Document
-from docx.shared import Inches, Pt
+from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFonts
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 import bidi.algorithm
 import arabic_reshaper
 
@@ -29,7 +27,7 @@ exam_content = """منظومة توليد الامتحانات المباشرة
 
 st.text_area("معاينة الأسئلة:", exam_content, height=180)
 
-# دالة لضبط الاتجاه من اليمين لليسار في ملفات Word
+# دالة لضبط اتجاه النص من اليمين لليسار في ملفات Word
 def set_paragraph_rtl(paragraph):
     pPr = paragraph._p.get_or_add_pPr()
     bidi = OxmlElement('w:bidi')
@@ -37,7 +35,7 @@ def set_paragraph_rtl(paragraph):
     pPr.append(bidi)
     paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
-# 1. تصدير Word (.docx) بشكل صحيح
+# 1. تصدير Word (.docx)
 def generate_word(text):
     doc = Document()
     for line in text.split('\n'):
@@ -52,13 +50,12 @@ def generate_word(text):
     buffer.seek(0)
     return buffer
 
-# 2. تصدير PDF (يدعم النصوص العربية المرتبة)
+# 2. تصدير PDF
 def generate_pdf(text):
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
     
-    # معالجة النصوص العربية لـ ReportLab باستخدام arabic_reshaper و bidi
     y = height - 50
     for line in text.split('\n'):
         if line.strip():
@@ -79,7 +76,6 @@ def generate_png(text):
     img = Image.new('RGB', (800, 600), color=(255, 255, 255))
     d = ImageDraw.Draw(img)
     
-    # ترتيب النصوص العربية للصورة
     y = 40
     for line in text.split('\n'):
         if line.strip():
