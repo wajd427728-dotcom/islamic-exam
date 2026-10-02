@@ -11,133 +11,182 @@ from PIL import Image, ImageDraw
 import bidi.algorithm
 import arabic_reshaper
 
+st.set_page_config(page_title="منظومة توليد الامتحانات", layout="wide")
+
 st.title("منظومة توليد الامتحانات المباشرة")
 st.write("مدرسة الذاريات الابتدائية المختلطة")
 
-# قائمة الأسئلة والترويسة كعناصر منفصلة ومرتبة
-school_title = "منظومة توليد الامتحانات المباشرة\nمدرسة الذاريات الابتدائية المختلطة"
-exam_info = "الصف: الخامس الابتدائي | العام الدراسي: 2026 / 2027 م | معلم المادة: حيدر محمد عبد الكريم\nالمادة: القرآن الكريم والتربية الإسلامية"
-divider = "--------------------------------------------------"
-q1 = "السؤال الأول: أجب عن الأسئلة الآتية:"
-sub_q1 = "1. ما هي سور القرآن المكية؟"
-sub_q2 = "2. اذكر أحكام النون الساكنة والتنوين."
+# 1. بيانات الامتحان المولد بالكامل (يمكنك ربطه بمخرجات منظومتك)
+header_info = {
+    "title": "منظومة توليد الامتحانات المباشرة",
+    "school": "مدرسة الذاريات الابتدائية المختلطة",
+    "details": "الصف: الخامس الابتدائي | العام الدراسي: 2026 / 2027 م | معلم المادة: حيدر محمد عبد الكريم",
+    "subject": "المادة: القرآن الكريم والتربية الإسلامية | الزمن: ساعة واحدة"
+}
 
-# معاينة نصية في التطبيق
-full_text = f"{school_title}\n{exam_info}\n{divider}\n{q1}\n{sub_q1}\n{sub_q2}"
-st.text_area("معاينة الأسئلة:", full_text, height=180)
+# قائمة الأسئلة الكاملة مع جميع الفروع
+questions = [
+    {
+        "title": "السؤال الأول: أحكام التلاوة والحفظ (20 درجة)",
+        "subs": [
+            "أ) اكتب ما تحفظه من سورة الأعلى من قوله تعالى: (سَبِّحِ اسْمَ رَبِّكَ الأَعْلَى) إلى قوله تعالى: (فَنَسَى).",
+            "ب) بين أحكام الإظهار والإدغام الواردة في الآيات المذكورة."
+        ]
+    },
+    {
+        "title": "السؤال الثاني: الفهم والتفسير (20 درجة)",
+        "subs": [
+            "أ) اذكر معاني الكلمات الآتية: (سَوَّى - قَدَّرَ فَهَدَى - الغُثَاء - أَحْوَى).",
+            "ب) ما هي أهم الدروس والعبر المستفادة من سورة الأعلى؟"
+        ]
+    },
+    {
+        "title": "السؤال الثالث: الحديث الشريف والأخلاق (20 درجة)",
+        "subs": [
+            "أ) اذكر حديثاً نبوياً شريفاً يحث على الصدق وأهميته في حياة المسلم.",
+            "ب) وضح كيف يساهم التعاون والتراحم بين الطلاب في بناء بيئة مدرسية ناجحة."
+        ]
+    }
+]
 
-# دالة لضبط اتجاه النص من اليمين لليسار في ملفات Word
-def set_paragraph_rtl(paragraph):
+# دالة ضبط الاتجاه لليمين لليسار في Word
+def set_paragraph_rtl(paragraph, align=WD_ALIGN_PARAGRAPH.RIGHT):
     pPr = paragraph._p.get_or_add_pPr()
     bidi = OxmlElement('w:bidi')
     bidi.set(qn('w:val'), '1')
     pPr.append(bidi)
-    paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    paragraph.alignment = align
 
-# 1. تصدير Word (.docx) بشكل مرتب لكل فقرة على حدة
+# --- 1. إنشاء ملف Word كامل بدون اقتطاع ---
 def generate_word():
     doc = Document()
     
-    # ضبط الهوامش القياسية
+    # ضبط الهوامش
     for section in doc.sections:
-        section.top_margin = Inches(1)
-        section.bottom_margin = Inches(1)
-        section.left_margin = Inches(1)
-        section.right_margin = Inches(1)
+        section.top_margin = Inches(0.8)
+        section.bottom_margin = Inches(0.8)
+        section.left_margin = Inches(0.8)
+        section.right_margin = Inches(0.8)
 
-    # فقرة العنوان والترويسة
-    p1 = doc.add_paragraph()
-    set_paragraph_rtl(p1)
-    r1 = p1.add_run(school_title)
-    r1.font.name = 'Arial'
-    r1.font.size = Pt(14)
-    r1.bold = True
+    # الترويسة العليا
+    p_head = doc.add_paragraph()
+    set_paragraph_rtl(p_head, WD_ALIGN_PARAGRAPH.CENTER)
+    r_head = p_head.add_run(f"{header_info['title']}\n{header_info['school']}")
+    r_head.font.name = 'Arial'
+    r_head.font.size = Pt(15)
+    r_head.bold = True
 
-    # فقرة معلومات الامتحان
-    p2 = doc.add_paragraph()
-    set_paragraph_rtl(p2)
-    r2 = p2.add_run(exam_info)
-    r2.font.name = 'Arial'
-    r2.font.size = Pt(11)
+    p_det = doc.add_paragraph()
+    set_paragraph_rtl(p_det, WD_ALIGN_PARAGRAPH.CENTER)
+    r_det = p_det.add_run(f"{header_info['details']}\n{header_info['subject']}")
+    r_det.font.name = 'Arial'
+    r_det.font.size = Pt(11)
 
-    # فاصل
-    p3 = doc.add_paragraph()
-    set_paragraph_rtl(p3)
-    r3 = p3.add_run(divider)
-    r3.font.name = 'Arial'
+    # خط فاصل
+    p_div = doc.add_paragraph()
+    set_paragraph_rtl(p_div, WD_ALIGN_PARAGRAPH.CENTER)
+    r_div = p_div.add_run("--------------------------------------------------------------------------------")
+    r_div.font.name = 'Arial'
 
-    # فقرات الأسئلة بترتيبها الصحيح
-    questions_list = [q1, sub_q1, sub_q2]
-    for text in questions_list:
-        pq = doc.add_paragraph()
-        set_paragraph_rtl(pq)
-        rq = pq.add_run(text)
-        rq.font.name = 'Arial'
-        rq.font.size = Pt(12)
-        if "السؤال" in text:
-            rq.bold = True
+    # إضافة كل الأسئلة والفرعيات
+    for q in questions:
+        p_q = doc.add_paragraph()
+        set_paragraph_rtl(p_q)
+        r_q = p_q.add_run(q["title"])
+        r_q.font.name = 'Arial'
+        r_q.font.size = Pt(13)
+        r_q.bold = True
+        
+        for sub in q["subs"]:
+            p_sub = doc.add_paragraph()
+            set_paragraph_rtl(p_sub)
+            r_sub = p_sub.add_run(sub)
+            r_sub.font.name = 'Arial'
+            r_sub.font.size = Pt(11)
+            
+        doc.add_paragraph() # مسافة بين الأسئلة
 
     buffer = BytesIO()
     doc.save(buffer)
     buffer.seek(0)
     return buffer
 
-# 2. تصدير PDF
+# --- 2. إنشاء ملف PDF كامل ---
 def generate_pdf():
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
-    
-    lines = [school_title, exam_info, divider, q1, sub_q1, sub_q2]
     y = height - 50
-    for block in lines:
-        for line in block.split('\n'):
-            if line.strip():
-                reshaped_text = arabic_reshaper.reshape(line)
-                bidi_text = bidi.algorithm.get_display(reshaped_text)
-                p.drawString(40, y, bidi_text)
-            y -= 25
-            if y < 50:
-                p.showPage()
-                y = height - 50
-            
+
+    lines = [
+        header_info['title'],
+        header_info['school'],
+        header_info['details'],
+        header_info['subject'],
+        "--------------------------------------------------"
+    ]
+    
+    for q in questions:
+        lines.append(q["title"])
+        for sub in q["subs"]:
+            lines.append(sub)
+        lines.append("") # مسافة
+
+    for line in lines:
+        if line.strip():
+            reshaped_text = arabic_reshaper.reshape(line)
+            bidi_text = bidi.algorithm.get_display(reshaped_text)
+            p.drawString(40, y, bidi_text)
+        y -= 22
+        if y < 50:
+            p.showPage()
+            y = height - 50
+
     p.save()
     buffer.seek(0)
     return buffer
 
-# 3. تصدير PNG (صورة)
+# --- 3. إنشاء صورة PNG كاملة ---
 def generate_png():
-    img = Image.new('RGB', (800, 600), color=(255, 255, 255))
+    img = Image.new('RGB', (850, 900), color=(255, 255, 255))
     d = ImageDraw.Draw(img)
-    
-    lines = [school_title, exam_info, divider, q1, sub_q1, sub_q2]
     y = 40
-    for block in lines:
-        for line in block.split('\n'):
-            if line.strip():
-                reshaped_text = arabic_reshaper.reshape(line)
-                bidi_text = bidi.algorithm.get_display(reshaped_text)
-                d.text((40, y), bidi_text, fill=(0, 0, 0))
-            y += 30
-        
+
+    lines = [
+        header_info['title'],
+        header_info['school'],
+        header_info['details'],
+        header_info['subject'],
+        "--------------------------------------------------"
+    ]
+    for q in questions:
+        lines.append(q["title"])
+        for sub in q["subs"]:
+            lines.append(sub)
+        lines.append("")
+
+    for line in lines:
+        if line.strip():
+            reshaped_text = arabic_reshaper.reshape(line)
+            bidi_text = bidi.algorithm.get_display(reshaped_text)
+            d.text((40, y), bidi_text, fill=(0, 0, 0))
+        y += 28
+
     buffer = BytesIO()
     img.save(buffer, format="PNG")
     buffer.seek(0)
     return buffer
 
-# --- أزرار التنزيل في الواجهة ---
-st.subheader("تحميل وفتح الملفات بالصيغ المختلفة")
+# --- الواجهة والأزرار ---
+st.subheader("تحميل ورقة الامتحان الكاملة")
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    pdf_data = generate_pdf()
-    st.download_button("📄 تحميل PDF", data=pdf_data, file_name="exam.pdf", mime="application/pdf")
+    st.download_button("📄 تحميل PDF", data=generate_pdf(), file_name="exam_full.pdf", mime="application/pdf")
 
 with col2:
-    word_data = generate_word()
-    st.download_button("📝 تحميل Word", data=word_data, file_name="exam.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    st.download_button("📝 تحميل Word", data=generate_word(), file_name="exam_full.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 with col3:
-    png_data = generate_png()
-    st.download_button("🖼 تحميل PNG", data=png_data, file_name="exam.png", mime="image/png")
+    st.download_button("🖼️ تحميل PNG", data=generate_png(), file_name="exam_full.png", mime="image/png")
