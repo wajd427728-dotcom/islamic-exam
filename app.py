@@ -14,7 +14,44 @@ st.title("منظومة توليد الامتحانات المباشرة - مدر
 st.write("الصف الخامس الابتدائي | المعلم: حيدر محمد عبد الكريم")
 
 # ---------------------------------------------------------
-# 1. بنك الأسئلة (مصمم ومضبوط للأقواس والاتجاهات)
+# 1. القوائم المنسدلة تحديد إعدادات الامتحان
+# ---------------------------------------------------------
+st.sidebar.header("📋 إعدادات نموذج الامتحان")
+
+# قائمة منسدلة لنوع الامتحان
+exam_type = st.sidebar.selectbox(
+    "اختر نوع الامتحان:",
+    [
+        "أسئلة امتحانات الشهر الأول",
+        "أسئلة امتحانات الشهر الثاني",
+        "أسئلة امتحانات نصف السنة",
+        "أسئلة امتحانات نهاية السنة - الدور الأول",
+        "أسئلة امتحانات نهاية السنة - الدور الثاني"
+    ]
+)
+
+# قائمة منسدلة للسنة الدراسية
+academic_year = st.sidebar.selectbox(
+    "اختر العام الدراسي:",
+    [
+        "2026/2025",
+        "2027/2026",
+        "2025/2024"
+    ]
+)
+
+# قائمة منسدلة لزمن الامتحان
+time_limit = st.sidebar.selectbox(
+    "اختر زمن الامتحان:",
+    [
+        "ساعتان",
+        "ساعة ونصف",
+        "ساعة واحدة"
+    ]
+)
+
+# ---------------------------------------------------------
+# 2. بنك الأسئلة الشامل (مضبوط الأقواس والرموز)
 # ---------------------------------------------------------
 QUESTION_BANK = {
     "q1_quran": [
@@ -57,7 +94,7 @@ QUESTION_BANK = {
 }
 
 # ---------------------------------------------------------
-# 2. دالة المحاذاة والاتجاه من اليمين إلى اليسار (RTL)
+# 3. دالة محاذاة اتجاه اليمين (RTL)
 # ---------------------------------------------------------
 def set_paragraph_rtl(paragraph, align=WD_ALIGN_PARAGRAPH.RIGHT):
     pPr = paragraph._p.get_or_add_pPr()
@@ -67,9 +104,9 @@ def set_paragraph_rtl(paragraph, align=WD_ALIGN_PARAGRAPH.RIGHT):
     paragraph.alignment = align
 
 # ---------------------------------------------------------
-# 3. دالة توليد الامتحان بأسئلة عشوائية من البنك
+# 4. دالة توليد الامتحان بأسئلة عشوائية
 # ---------------------------------------------------------
-def generate_exam():
+def generate_exam(selected_type, selected_year, selected_time):
     doc = Document()
     
     for section in doc.sections:
@@ -85,19 +122,19 @@ def generate_exam():
     table.columns[1].width = Inches(3.0)
     table.columns[2].width = Inches(2.3)
 
-    # اليمين: معلومات المادة
+    # اليمين
     p_r = table.cell(0, 0).paragraphs[0]
     set_paragraph_rtl(p_r, WD_ALIGN_PARAGRAPH.RIGHT)
-    r = p_r.add_run("المادة : التربية الإسلامية\nالصف : الخامس الابتدائي\nالزمن : ساعتان")
+    r = p_r.add_run(f"المادة : التربية الإسلامية\nالصف : الخامس الابتدائي\nالزمن : {selected_time}")
     r.font.name = 'Arial'; r.font.size = Pt(10); r.bold = True
 
-    # الوسط: نوع الامتحان
+    # الوسط (النوع المختار والمناظر للسنة)
     p_c = table.cell(0, 1).paragraphs[0]
     set_paragraph_rtl(p_c, WD_ALIGN_PARAGRAPH.CENTER)
-    rc = p_c.add_run("بسم الله الرحمن الرحيم\nأسئلة امتحانات نهاية السنة\nللعام الدراسي 2026/2025 الدور الثاني")
+    rc = p_c.add_run(f"بسم الله الرحمن الرحيم\n{selected_type}\nللعام الدراسي {selected_year}")
     rc.font.name = 'Arial'; rc.font.size = Pt(11); rc.bold = True
 
-    # اليسار: إدارة المدرسة
+    # اليسار
     p_l = table.cell(0, 2).paragraphs[0]
     set_paragraph_rtl(p_l, WD_ALIGN_PARAGRAPH.LEFT)
     rl = p_l.add_run("إدارة\nمدرسة الذاريات\nالابتدائية المختلطة")
@@ -180,16 +217,18 @@ def generate_exam():
     return buffer
 
 # ---------------------------------------------------------
-# 4. الواجهة والتوليد في Streamlit
+# 5. عرض الاختيارات وزر التوليد
 # ---------------------------------------------------------
-if st.button("🎲 توليد نموذج امتحان جديد عشوائياً"):
-    st.session_state['exam_file'] = generate_exam()
-    st.success("تم التوليد بنجاح من بنك الأسئلة!")
+st.info(f"📌 النموذج الحالي: **{exam_type}** | العام الدراسي: **{academic_year}** | الزمن: **{time_limit}**")
+
+if st.button("🎲 توليد امتحان جديد بالخيارات المحددة"):
+    st.session_state['exam_file'] = generate_exam(exam_type, academic_year, time_limit)
+    st.success("تم توليد النموذج وسحب الأسئلة بنجاح!")
 
 if 'exam_file' in st.session_state:
     st.download_button(
         label="📝 تحميل ملف Word النهائي",
         data=st.session_state['exam_file'],
-        file_name="Islamic_Exam_Grade5_Final.docx",
+        file_name=f"Exam_{exam_type}.docx",
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
